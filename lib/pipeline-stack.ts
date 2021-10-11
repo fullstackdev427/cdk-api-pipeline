@@ -111,21 +111,21 @@ export class PipelineStack extends Stack {
             }),
           ],
         },
-        {
-          stageName: 'Deploy',
-          actions: [
-            new codepipeline_actions.CloudFormationCreateUpdateStackAction({
-              actionName: 'Lambda_CFN_Deploy',
-              templatePath: cdkBuildOutput.atPath('LambdaStack.template.json'),
-              stackName: 'LambdaDeploymentStack',
-              adminPermissions: true,
-              parameterOverrides: {
-                ...props.lambdaCode.assign(lambdaBuildOutput.s3Location)
-              },
-              extraInputs: [lambdaBuildOutput],
-            }),
-          ],
-        },
+        // {
+        //   stageName: 'Deploy',
+        //   actions: [
+        //     new codepipeline_actions.CloudFormationCreateUpdateStackAction({
+        //       actionName: 'Lambda_CFN_Deploy',
+        //       templatePath: cdkBuildOutput.atPath('LambdaStack.template.json'),
+        //       stackName: 'LambdaDeploymentStack',
+        //       adminPermissions: true,
+        //       parameterOverrides: {
+        //         ...props.lambdaCode.assign(lambdaBuildOutput.s3Location)
+        //       },
+        //       extraInputs: [lambdaBuildOutput],
+        //     }),
+        //   ],
+        // },
       ],
     });
   }
