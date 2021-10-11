@@ -1,0 +1,20 @@
+{
+  "name": "cdk-api",
+  "version": "1.0.0",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^13.11.1",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "@aws-cdk/aws-apigateway": "^1.127.0",
+    "@aws-cdk/aws-cloudfront": "^1.127.0",
+    "@aws-cdk/aws-codedeploy": "^1.127.0",
+    "@aws-cdk/aws-lambda": "^1.127.0",
+    "aws-lambda-fastify": "^1.4.2",
+    "fastify": "^2.15.1"
+  },
+  "scripts": {
+    "build": "tsc"
+  }
+}
