@@ -4,6 +4,59 @@ import * as codepipeline from '@aws-cdk/aws-codepipeline';
 import * as codepipeline_actions from '@aws-cdk/aws-codepipeline-actions';
 import * as lambda from '@aws-cdk/aws-lambda';
 import { App, Stack, StackProps, SecretValue } from '@aws-cdk/core';
+import events = require('@aws-cdk/aws-events');
+import { Construct } from '@aws-cdk/core';
+import * as iam from '@aws-cdk/aws-iam';
+import { ManagedPolicy } from '@aws-cdk/aws-iam';
+
+export interface ElasticBeanStalkDeployActionProps extends codepipeline.CommonAwsActionProps {
+    applicationName: string;
+
+    environmentName: string;
+    
+    input: codepipeline.Artifact;
+}
+
+export class ElasticBeanStalkDeployAction implements codepipeline.IAction {
+    public readonly actionProperties: codepipeline.ActionProperties;
+    private readonly props: ElasticBeanStalkDeployActionProps;
+
+    constructor(props: ElasticBeanStalkDeployActionProps) {
+        this.actionProperties = {
+            ...props,
+            provider: 'ElasticBeanstalk',
+            category: codepipeline.ActionCategory.DEPLOY,
+            artifactBounds: { minInputs: 1, maxInputs: 1, minOutputs: 0, maxOutputs: 0 },
+            inputs: [props.input],
+        };
+        this.props = props;
+    }
+
+    public bind(_scope: Construct, _stage: codepipeline.IStage, options: codepipeline.ActionBindOptions):
+            codepipeline.ActionConfig {
+        options.bucket.grantRead(options.role);
+        options.role.addToPrincipalPolicy(new iam.PolicyStatement({
+          resources: ['*'],
+          actions: ['elasticbeanstalk:*',
+          'autoscaling:*',
+          'elasticloadbalancing:*',
+          'rds:*',
+          's3:*',
+          'cloudwatch:*',
+          'cloudformation:*'],
+        }));
+        return {
+            configuration: {
+                ApplicationName: this.props.applicationName,
+                EnvironmentName: this.props.environmentName,
+            },
+        };
+    }
+
+    public onStateChange(_name: string, _target?: events.IRuleTarget, _options?: events.RuleProps): events.Rule {
+        throw new Error('unsupported');
+    }
+}
 
 export interface PipelineStackProps extends StackProps {
   readonly lambdaCode: lambda.CfnParametersCode;
@@ -14,71 +67,11 @@ export class PipelineStack extends Stack {
   constructor(app: App, id: string, props: PipelineStackProps) {
     super(app, id, props);
 
-    // Build CDK
-    const cdkBuild = new codebuild.PipelineProject(this, 'CdkBuild', {
-      buildSpec: codebuild.BuildSpec.fromObject({
-        version: '0.2',
-        phases: {
-          install: {
-            commands: [
-              'npm install'
-            ],
-          },
-          build: {
-            commands: [
-              'npm run build',
-              'npm run cdk synth -- -o dist'
-            ],
-          },
-        },
-        artifacts: {
-          'base-directory': 'dist',
-          files: [
-            'LambdaStack.template.json',
-          ],
-        },
-      }),
-      environment: {
-        buildImage: codebuild.LinuxBuildImage.STANDARD_4_0,
-      },
-    });
-
-    // Build Lambda
-    const lambdaBuild = new codebuild.PipelineProject(this, "LambdaBuild", {
-      buildSpec: codebuild.BuildSpec.fromObject({
-        version: "0.2",
-        phases: {
-          install: {
-            commands: [
-              'cd lambda',
-              "npm i"
-            ]
-          },
-          build: {
-            commands: "npm run build"
-          }
-        },
-        artifacts: {
-          "base-directory": "lambda",
-          files: [
-            "build/**/*",
-            "node_modules/**/*",
-            "@types"
-          ]
-        }
-      }),
-      environment: {
-        buildImage: codebuild.LinuxBuildImage.STANDARD_4_0
-      }
-    });
-
     // Create Artifacts
     const sourceOutput = new codepipeline.Artifact("SrcOutput");
-    const cdkBuildOutput = new codepipeline.Artifact('CdkBuildOutput');
-    const lambdaBuildOutput = new codepipeline.Artifact('LambdaBuildOutput');
 
     // Complete Pipeline Project
-    new codepipeline.Pipeline(this, 'Pipeline', {
+    const pipeline = new codepipeline.Pipeline(this, 'Pipeline', {
       restartExecutionOnUpdate: true,
       stages: [
         {
@@ -88,45 +81,30 @@ export class PipelineStack extends Stack {
               actionName: 'Checkout',
               output: sourceOutput,
               owner: "fullstackdev427",
-              repo: "cdk-api-pipeline",
+              repo: "eb-laravel",
+              branch: "main",
+              variablesNamespace: "SourceVariables",
               oauthToken: SecretValue.plainText(props.githubToken),
               trigger: codepipeline_actions.GitHubTrigger.WEBHOOK,
             }),
           ],
         },
         {
-          stageName: 'Build',
+          stageName: 'Deploy',
           actions: [
-            new codepipeline_actions.CodeBuildAction({
-              actionName: 'Lambda_Build',
-              project: lambdaBuild,
+            new ElasticBeanStalkDeployAction({
+              actionName: 'Deploy',
+              applicationName: 'laravelWithBeanstalk',
+              environmentName: 'Laravelwithbeanstalk-env',
+              variablesNamespace: 'DeployVariables',
               input: sourceOutput,
-              outputs: [lambdaBuildOutput],
-            }),
-            new codepipeline_actions.CodeBuildAction({
-              actionName: 'CDK_Build',
-              project: cdkBuild,
-              input: sourceOutput,
-              outputs: [cdkBuildOutput],
             }),
           ],
         },
-        // {
-        //   stageName: 'Deploy',
-        //   actions: [
-        //     new codepipeline_actions.CloudFormationCreateUpdateStackAction({
-        //       actionName: 'Lambda_CFN_Deploy',
-        //       templatePath: cdkBuildOutput.atPath('LambdaStack.template.json'),
-        //       stackName: 'LambdaDeploymentStack',
-        //       adminPermissions: true,
-        //       parameterOverrides: {
-        //         ...props.lambdaCode.assign(lambdaBuildOutput.s3Location)
-        //       },
-        //       extraInputs: [lambdaBuildOutput],
-        //     }),
-        //   ],
-        // },
       ],
+      
     });
+    pipeline.role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess-AWSElasticBeanstalk'));
+
   }
 }

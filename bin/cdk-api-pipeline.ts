@@ -4,6 +4,8 @@ import * as cdk from '@aws-cdk/core';
 import { LambdaStack } from '../lib/lambda-stack';
 import { PipelineStack } from '../lib/pipeline-stack';
 
+process.env.GITHUB_TOKEN = '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';
+
 if (!process.env.GITHUB_TOKEN) {
   console.log("No Github Token present");
 }
