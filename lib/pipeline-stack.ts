@@ -43,7 +43,8 @@ export class ElasticBeanStalkDeployAction implements codepipeline.IAction {
           'rds:*',
           's3:*',
           'cloudwatch:*',
-          'cloudformation:*'],
+          'cloudformation:*',
+          'ec2:*'],
         }));
         return {
             configuration: {
@@ -59,7 +60,6 @@ export class ElasticBeanStalkDeployAction implements codepipeline.IAction {
 }
 
 export interface PipelineStackProps extends StackProps {
-  readonly lambdaCode: lambda.CfnParametersCode;
   readonly githubToken: string;
 }
 
@@ -81,7 +81,10 @@ export class PipelineStack extends Stack {
               actionName: 'Checkout',
               output: sourceOutput,
               owner: "fullstackdev427",
+              //owner: "anybirth-inc",
               repo: "eb-laravel",
+              //repo: "picaroai",
+              //branch: "develop_alpha",
               branch: "main",
               variablesNamespace: "SourceVariables",
               oauthToken: SecretValue.plainText(props.githubToken),
@@ -94,8 +97,8 @@ export class PipelineStack extends Stack {
           actions: [
             new ElasticBeanStalkDeployAction({
               actionName: 'Deploy',
-              applicationName: 'laravelWithBeanstalk',
-              environmentName: 'Laravelwithbeanstalk-env',
+              applicationName: 'LaravelApp',
+              environmentName: 'PHP-74-Pipeline-211012',
               variablesNamespace: 'DeployVariables',
               input: sourceOutput,
             }),
@@ -105,6 +108,5 @@ export class PipelineStack extends Stack {
       
     });
     pipeline.role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess-AWSElasticBeanstalk'));
-
   }
 }
